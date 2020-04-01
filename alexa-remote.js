@@ -848,18 +848,22 @@ class AlexaRemote extends EventEmitter {
         req.end();
     }
 
-
 /// Public
     checkAuthentication(callback) {
-        this.httpsGetCall ('/api/bootstrap?version=0', function (err, res) {
-            if (res && res.authentication && res.authentication.authenticated !== undefined) {
-                return callback(res.authentication.authenticated, err);
-            }
-            if (err && !err.message.includes('no body')) {
-                return callback(null, err);
-            }
-            callback(false, err);
-        });
+        // If we dont have a cookie assigned, we cant be authenticated
+        if (this.cookie) {
+            this.httpsGetCall('/api/bootstrap?version=0', function (err, res) {
+                if (res && res.authentication && res.authentication.authenticated !== undefined) {
+                    return callback(res.authentication.authenticated, err);
+                }
+                if (err && !err.message.includes('no body')) {
+                    return callback(null, err);
+                }
+                callback(false, err);
+            });
+        } else {
+            callback(false, null);
+        }
     }
 
     checkConnection(callback) {
