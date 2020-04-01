@@ -1556,6 +1556,12 @@ class AlexaRemote extends EventEmitter {
                 break;
             case 'cleanup':
                 seqNode.type = 'Alexa.CleanUp.Play';
+		        break;
+            case 'curatedtts':
+                let okVals = ["goodbye", "confirmations", "goodmorning", "compliments", "birthday", "goodnight", "iamhome"];
+                if(!okVals.includes(value)) { return null }
+                seqNode.type = 'Alexa.CannedTts.Speak';
+                seqNode.operationPayload.cannedTtsStringId = `alexa.cannedtts.speak.curatedtts-category-${value}/alexa.cannedtts.speak.curatedtts-random`;
                 break;
             case 'singasong':
                 seqNode.type = 'Alexa.SingASong.Play';
