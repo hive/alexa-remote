@@ -718,8 +718,12 @@ class AlexaRemote extends EventEmitter {
     }
 
 	stopProxyServer(callback) {
-		if (!this.alexaCookie) return true;
-		this.alexaCookie.stopProxyServer(callback);
+		if (this.alexaCookie) {
+            this.alexaCookie.stopProxyServer(callback);
+        } else {
+            callback(false, err)
+        }
+
 	}
 
     httpsGet(noCheck, path, callback, flags = {}) {
