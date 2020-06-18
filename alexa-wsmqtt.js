@@ -67,6 +67,10 @@ class AlexaWsMqtt extends EventEmitter {
         let initTimeout = null;
 
         this.websocket.on('open', () => {
+            if (this.stop) {
+                this.websocket.close();
+                return;
+            }
             this._options.logger && this._options.logger('Alexa-Remote WS-MQTT: Open: ' + url);
             this.connectionActive = false;
 
@@ -107,9 +111,11 @@ class AlexaWsMqtt extends EventEmitter {
             if (this.errorRetryCounter > 100) {
                 this.emit('disconnect', false, 'Too many failed retries. Check cookie and data');
                 return;
+            } else {
+                this.errorRetryCounter++;
             }
-            let retryDelay = this.errorRetryCounter * 5 + 5;
-            if (retryDelay > 60) retryDelay = 60;
+
+            let retryDelay = Math.min(60, (this.errorRetryCounter * 5) + 5);
             this._options.logger && this._options.logger('Alexa-Remote WS-MQTT: Retry Connection in ' + retryDelay + 's');
             this.emit('disconnect', true, 'Retry Connection in ' + retryDelay + 's');
             this.reconnectTimeout = setTimeout(() => {
@@ -454,6 +460,7 @@ class AlexaWsMqtt extends EventEmitter {
     disconnect() {
         if (!this.websocket) return;
         this.stop = true;
+      
 	    this._options.logger && this._options.logger('Alexa-Remote WS-MQTT: Close');
 
 	    // There is a race condition when close is called, where the websocket is open and attempt to either send pings or receive pongs.
@@ -470,9 +477,13 @@ class AlexaWsMqtt extends EventEmitter {
 		    this.pongTimeout = null;
 	    }
 	    // Now call the close.
-        if (this.connectionActive) {
+      if (this.connectionActive) {
+        try {
             this.websocket.close();
+        } catch (e) {
+            this._options.logger && this._options.logger('Alexa-Remote WS-MQTT: Disconnect error: ' +e);
         }
+      }
     }
 }
 

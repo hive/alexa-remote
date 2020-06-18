@@ -745,7 +745,7 @@ class AlexaRemote extends EventEmitter {
             this.init(this._options, function(err) {
                 if (err) {
                     this._options.logger && this._options.logger('Alexa-Remote: Authentication check Error and renew unsuccessfull. STOP');
-                    return callback(new Error('Cookie invalid, Renew unsuccessfull'));
+                    return callback && callback(new Error('Cookie invalid, Renew unsuccessfull'));
                 }
                 return this.httpsGet(path, callback, flags);
             });
@@ -758,7 +758,7 @@ class AlexaRemote extends EventEmitter {
             host: this.baseUrl,
             path: '',
             method: 'GET',
-            timeout: 10000,
+            timeout: flags.timeout || 10000,
             headers: {
                 'User-Agent' : this._options.userAgent,
                 'Content-Type': 'application/json; charset=UTF-8',
@@ -813,29 +813,49 @@ class AlexaRemote extends EventEmitter {
                 if (typeof callback === 'function') {
                     if (!body) { // Method 'DELETE' may return HTTP STATUS 200 without body
                         this._options.logger && this._options.logger('Alexa-Remote: Response: No body');
-                        return res.statusCode.toString().substr(0,1) == '2' ? callback(null, { 'success': true }) : callback(new Error('no body'), null);
+                        return typeof res.statusCode === 'number' && res.statusCode%100 === 2 ? callback(null, { 'success': true }) : callback(new Error('no body'), null);
                     }
 					
                     try {
                         ret = JSON.parse(body);
-                    } catch(e) {
+                    } catch (e) {
                         this._options.logger && this._options.logger('Alexa-Remote: Response: No/Invalid JSON');
-                        return callback (new Error('no JSON'), body);
+                        callback && callback (new Error('no JSON'), body);
+                        callback = null;
+                        return;
                     }
 					
                     this._options.logger && this._options.logger('Alexa-Remote: Response: ' + JSON.stringify(ret));
-                    return callback (null, ret);
-                    callback(ret);
+                    callback (null, ret);
+                    callback = null;
                 }
             });
         });
 
-        req.on('error', function(e) {
+        req.on('error', (e) => {
+            this._options.logger && this._options.logger('Alexa-Remote: Response: Error: ' + e);
             if (typeof callback === 'function'/* && callback.length >= 2*/) {
-                return callback (e, null);
+                callback (e, null);
+                callback = null;
             }
         });
-		
+
+        req.on('timeout', () => {
+            if (typeof callback === 'function'/* && callback.length >= 2*/) {
+                this._options.logger && this._options.logger('Alexa-Remote: Response: Timeout');
+                callback (new Error('Timeout'), null);
+                callback = null;
+            }
+        });
+
+        req.on('close', () => {
+            if (typeof callback === 'function'/* && callback.length >= 2*/) {
+                this._options.logger && this._options.logger('Alexa-Remote: Response: Closed');
+                callback (new Error('COnnection Closed'), null);
+                callback = null;
+            }
+        });
+
         if (flags && flags.data) {
             req.write(flags.data);
         }
@@ -1531,6 +1551,15 @@ class AlexaRemote extends EventEmitter {
             case 'goodmorning':
                 seqNode.type = 'Alexa.GoodMorning.Play';
                 break;
+            case 'funfact':
+                seqNode.type = 'Alexa.FunFact.Play';
+                break;
+            case 'joke':
+                seqNode.type = 'Alexa.Joke.Play';
+                break;
+            case 'cleanup':
+                seqNode.type = 'Alexa.CleanUp.Play';
+                break;
             case 'singasong':
                 seqNode.type = 'Alexa.SingASong.Play';
                 break;
@@ -1545,6 +1574,12 @@ class AlexaRemote extends EventEmitter {
                 break;
             case 'calendarNext':
                 seqNode.type = 'Alexa.Calendar.PlayNext';
+                break;
+            case 'curatedtts':
+                let supportedValues = ["goodbye", "confirmations", "goodmorning", "compliments", "birthday", "goodnight", "iamhome"];
+                if(!supportedValues.includes(value)) { return null }
+                seqNode.type = 'Alexa.CannedTts.Speak';
+                seqNode.operationPayload.cannedTtsStringId = `alexa.cannedtts.speak.curatedtts-category-${value}/alexa.cannedtts.speak.curatedtts-random`;
                 break;
             case 'volume':
                 seqNode.type = 'Alexa.DeviceControls.Volume';
@@ -1886,6 +1921,8 @@ class AlexaRemote extends EventEmitter {
             }
             if (!res.locationDetails) return callback('locationDetails not found');
             callback (err, res.locationDetails);
+        }, {
+            timeout: 30000
         });
     }
 
@@ -1899,7 +1936,8 @@ class AlexaRemote extends EventEmitter {
             {
                 headers: {
                     'Routines-Version': '1.1.210292'
-                }
+                },
+                timeout: 30000
             }
         );
     }
@@ -1910,7 +1948,8 @@ class AlexaRemote extends EventEmitter {
             {
                 headers: {
                     'Routines-Version': '1.1.210292'
-                }
+                },
+                timeout: 30000
             }
         );
     }
